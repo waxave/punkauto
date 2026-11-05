@@ -177,8 +177,8 @@ module Punkauto
 
       price_node = listing.at_css(".listing-price") || listing.at_css('[id^="dprice"]')
       if price_node
-        match = node_text(price_node).match(/\$([0-9,]+\.?[0-9]*)/)
-        price = "$#{match[1]}" if match
+        match = node_text(price_node).match(/([A-Za-z]{2,3})?\$([0-9,]+\.?[0-9]*)/)
+        price = match[1] ? "#{match[1]}$#{match[2]}" : "$#{match[2]}" if match
       end
 
       image_node = listing.at_css("img.listing-inline-image, img[id^='inlineimg_thumb']")

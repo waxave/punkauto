@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "faraday", ">= 2.0"
   spec.add_dependency "faraday-cookie_jar", ">= 0.0.7"
   spec.add_dependency "faraday-follow_redirects", ">= 0.3"
+  spec.add_dependency "faraday-gzip", ">= 1.0"
   spec.add_dependency "http-cookie", ">= 1.0"
   spec.add_dependency "nokogiri", ">= 1.13"
 

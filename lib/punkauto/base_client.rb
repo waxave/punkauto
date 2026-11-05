@@ -3,6 +3,7 @@
 require "faraday"
 require "faraday/cookie_jar"
 require "faraday/follow_redirects"
+require "faraday/gzip"
 require "http/cookie_jar"
 require "json"
 
@@ -260,6 +261,7 @@ module Punkauto
       Faraday.new(headers: default_headers, request: { timeout: 30, open_timeout: 30 }) do |conn|
         conn.use :cookie_jar, jar: @cookie_jar
         conn.request :url_encoded
+        conn.request :gzip
         conn.response :follow_redirects
         conn.response :raise_error
         conn.adapter Faraday.default_adapter
@@ -272,7 +274,7 @@ module Punkauto
           "User-Agent" => "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1",
           "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           "Accept-Language" => "en-US,en;q=0.9",
-          "Accept-Encoding" => "gzip, deflate, br",
+          "Accept-Encoding" => "gzip, deflate",
           "Sec-Fetch-Dest" => "document",
           "Sec-Fetch-Mode" => "navigate",
           "Sec-Fetch-Site" => "none",
@@ -285,7 +287,7 @@ module Punkauto
           "User-Agent" => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
           "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
           "Accept-Language" => "en-US,en;q=0.9",
-          "Accept-Encoding" => "gzip, deflate, br, zstd",
+          "Accept-Encoding" => "gzip, deflate",
           "Sec-Ch-Ua" => '"Chromium";v="139", "Not;A=Brand";v="99"',
           "Sec-Ch-Ua-Mobile" => "?0",
           "Sec-Ch-Ua-Platform" => '"Linux"',
