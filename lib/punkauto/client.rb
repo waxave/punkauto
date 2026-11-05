@@ -827,65 +827,9 @@ module Punkauto
     end
 
     def parse_parts_search_results(doc)
-      parts = []
-
-      doc.css("table").each do |table|
-        table.css("tr").each do |row|
-          cells = row.css("td, th")
-          if cells.length >= 3
-            part_info = extract_part_from_search_row(row, cells)
-            parts << part_info if part_info
-          end
-        end
+      doc.css(".listing-inner").filter_map do |listing|
+        PartExtractor.extract_from_listing(listing)
       end
-
-      parts
-    end
-
-    def extract_part_from_search_row(row, cells)
-      cell_texts = cells.map { |cell| text_of(cell) }.reject(&:empty?)
-
-      url = nil
-      link = row.at_css("a[href]")
-      if link
-        href = link["href"].to_s
-        unless href.empty?
-          url = href.start_with?("http") ? href : "https://www.rockauto.com#{href}"
-        end
-      end
-
-      price = nil
-      cell_texts.each do |text|
-        match = text.match(/\$([0-9,]+\.?[0-9]*)/)
-        if match
-          price = "$#{match[1]}"
-          break
-        end
-      end
-
-      part_number = "Unknown"
-      cell_texts.each do |text|
-        next if text.include?("$")
-
-        match = text.match(/\b[A-Z0-9\-]{4,}\b/)
-        if match
-          part_number = match[0]
-          break
-        end
-      end
-
-      name_candidates = cell_texts.reject { |text| text.include?("$") }
-      name = name_candidates.max_by(&:length)
-
-      PartInfo.new(
-        name: name || "Unknown Part",
-        part_number: part_number,
-        price: price,
-        brand: nil,
-        url: url
-      )
-    rescue StandardError
-      nil
     end
 
     def parse_what_is_part_called_results(doc)

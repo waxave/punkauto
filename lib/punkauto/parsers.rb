@@ -158,8 +158,8 @@ module Punkauto
       nil
     end
 
-    # Extract a part from a DIV-based listing node (RockAuto's current layout).
-    def extract_from_listing(listing, name: "Unknown Part")
+    # Extract a part from a listing node (DIV- or TBODY-based).
+    def extract_from_listing(listing, name: nil)
       brand = nil
       part_number = "Unknown"
       price = nil
@@ -187,10 +187,22 @@ module Punkauto
       info_link = listing.at_css("a[href*='moreinfo.php']")
       info_url = format_url(info_link["href"]) if info_link && info_link["href"]
 
+      part_name = name
+      if part_name.nil?
+        footnote = listing.at_css(".listing-footnote-text")
+        part_name =
+          if footnote
+            text = node_text(footnote).sub(/\ACategory:\s*/i, "").strip
+            text.empty? ? "Unknown Part" : text
+          else
+            "Unknown Part"
+          end
+      end
+
       return nil if part_number == "Unknown" && price.nil? && brand.nil?
 
       PartInfo.new(
-        name: name,
+        name: part_name,
         part_number: part_number,
         price: price,
         brand: brand,

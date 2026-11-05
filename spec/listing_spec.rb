@@ -30,6 +30,22 @@ RSpec.describe Punkauto::PartExtractor do
       empty = Nokogiri::HTML('<div class="listing-inner"></div>').at_css(".listing-inner")
       expect(described_class.extract_from_listing(empty, name: "X")).to be_nil
     end
+
+    it "extracts the name from the footnote when no name is given" do
+      html = '<table><tbody class="listing-inner">' \
+             '<span class="listing-final-manufacturer">BETTER BRAKE PARTS</span>' \
+             '<span class="listing-final-partnumber">41488K</span>' \
+             '<span class="listing-footnote-text">Category: Caliper Repair Kit</span>' \
+             '<span class="listing-price">$46.37</span>' \
+             '</tbody></table>'
+      node = Nokogiri::HTML(html).at_css(".listing-inner")
+
+      part = described_class.extract_from_listing(node)
+      expect(part.name).to eq("Caliper Repair Kit")
+      expect(part.brand).to eq("BETTER BRAKE PARTS")
+      expect(part.part_number).to eq("41488K")
+      expect(part.price).to eq("$46.37")
+    end
   end
 end
 
@@ -95,6 +111,38 @@ RSpec.describe Punkauto::Client do
       expect(part.brand).to eq("ULTRA-POWER")
       expect(part.part_number).to eq("550173")
       expect(part.price).to eq("$49.99")
+    end
+  end
+
+  describe "#search_parts_by_number" do
+    let(:listing_html) do
+      '<table><tbody class="listing-inner">' \
+        '<span class="listing-final-manufacturer">BETTER BRAKE PARTS</span>' \
+        '<span class="listing-final-partnumber">41488K</span>' \
+        '<span class="listing-footnote-text">Category: Caliper Repair Kit</span>' \
+        '<span class="listing-price">$46.37</span>' \
+        '<a href="https://www.rockauto.com/en/moreinfo.php?pk=15762661">Info</a>' \
+        '</tbody></table>'
+    end
+
+    before do
+      stub_request(:get, "https://www.rockauto.com/en/partsearch/")
+        .to_return(status: 200, body: '<input name="_nck" value="token123">',
+                   headers: { "Content-Type" => "text/html" })
+      stub_request(:post, "https://www.rockauto.com/en/partsearch/")
+        .to_return(status: 200, body: listing_html, headers: { "Content-Type" => "text/html" })
+    end
+
+    it "parses search results into PartInfo objects" do
+      result = subject.search_parts_by_number("121g")
+      expect(result).to be_a(Punkauto::PartSearchResult)
+      expect(result.count).to eq(1)
+      part = result.parts.first
+      expect(part.brand).to eq("BETTER BRAKE PARTS")
+      expect(part.part_number).to eq("41488K")
+      expect(part.name).to eq("Caliper Repair Kit")
+      expect(part.price).to eq("$46.37")
+      expect(part.info_url).to eq("https://www.rockauto.com/en/moreinfo.php?pk=15762661")
     end
   end
 end
