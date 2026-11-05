@@ -17,10 +17,8 @@ Gem::Specification.new do |spec|
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.2"
 
-  spec.metadata["homepage_uri"]    = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/waxave/punkauto"
   spec.metadata["changelog_uri"]   = "https://github.com/waxave/punkauto/blob/main/CHANGELOG.md"
-
   spec.files = Dir.glob("lib/**/*.rb") + %w[LICENSE README.md CHANGELOG.md exe/punkauto]
   spec.bindir        = "exe"
   spec.executables   = ["punkauto"]
