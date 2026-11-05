@@ -1,0 +1,69 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "punkauto"
+
+# Command-line interface for Punkauto / RockAuto API.
+module Punkauto
+  module CLI
+    module_function
+
+    def search_parts(make, year, model, category = nil)
+      Client.new.with do |client|
+        puts "🚗 Searching parts for #{year} #{make} #{model}"
+
+        vehicle = client.get_vehicle(make, year, model)
+        puts "✅ Vehicle: #{vehicle}"
+
+        categories = vehicle.get_part_categories
+        puts "📁 Found #{categories.count} part categories"
+
+        if category
+          matching = categories.categories.select { |c| c.name.downcase.include?(category.downcase) }
+          if matching.any?
+            cat = matching.first
+            puts "🔍 Searching category: #{cat.name}"
+
+            parts = vehicle.get_parts_by_category(cat.group_name)
+            puts "📦 Found #{parts.count} parts"
+
+            parts.parts.first(5).each_with_index do |part, i|
+              puts "  #{i + 1}. #{part.name}"
+              puts "     Price: #{part.price}" if part.price
+            end
+          else
+            puts "❌ Category '#{category}' not found"
+          end
+        else
+          puts "\n📋 Available categories:"
+          categories.categories.each_with_index do |cat, i|
+            puts format("  %2d. %s", i + 1, cat.name)
+          end
+        end
+      rescue StandardError => e
+        puts "❌ Error: #{e.message}"
+        exit 1
+      end
+    end
+
+    def main(argv = ARGV)
+      if argv.length < 3
+        puts "Usage: punkauto <make> <year> <model> [category]"
+        puts "Example: punkauto Honda 2020 Civic brake"
+        exit 1
+      end
+
+      make = argv[0]
+      year = Integer(argv[1])
+      model = argv[2]
+      category = argv[3]
+
+      search_parts(make, year, model, category)
+    rescue ArgumentError
+      puts "Error: year must be an integer"
+      exit 1
+    end
+  end
+end
+
+Punkauto::CLI.main if $PROGRAM_NAME == __FILE__
