@@ -472,23 +472,18 @@ module Punkauto
 
       level = category_path.empty? ? 1 : category_path.split(",").length
 
-      doc.css("a[href]").each do |link|
+      doc.css("a.navlabellink").each do |link|
         href = link["href"].to_s
         text = text_of(link)
 
         next unless href.include?("/en/tools/") && !text.empty? && text.length > 2
-
-        skip_words = %w[toggle help cart search rockauto bigger]
-        next if skip_words.any? { |word| text.downcase.include?(word) }
 
         path_part = href.sub("/en/tools/", "").strip("/")
 
         if category_path.empty?
           next unless !path_part.empty? && !path_part.include?(",")
 
-          group_name = path_part.gsub(" ", "+").gsub("&", "%26")
-          category = ToolCategory.new(name: text, group_name: group_name, href: href, level: 1)
-          categories << category unless categories.any? { |c| c.name == category.name }
+          categories << ToolCategory.new(name: text, group_name: text, href: href, level: 1)
         else
           next if path_part.empty?
 
@@ -496,12 +491,12 @@ module Punkauto
           expected_segments = category_path.split(",").length + 1
 
           if path_segments.length == expected_segments
-            group_name = path_part.gsub(" ", "+").gsub("&", "%26")
-            category = ToolCategory.new(name: text, group_name: group_name, href: href, level: path_segments.length)
-            categories << category unless categories.any? { |c| c.name == category.name }
+            categories << ToolCategory.new(name: text, group_name: text, href: href, level: path_segments.length)
           end
         end
       end
+
+      categories.uniq! { |c| c.name }
 
       ToolCategories.new(categories: categories, count: categories.length, level: level, parent_path: category_path)
     rescue StandardError => e
@@ -512,20 +507,49 @@ module Punkauto
       url = "https://www.rockauto.com/en/tools/#{category_path}"
       response = @session.get(url)
       doc = Nokogiri::HTML(response.body)
+
+      # Extract parttype nodes from the tools tree (hidden jsn inputs).
+      parttype_ids = []
+      doc.css('input[id^="jsn"]').each do |input|
+        json = begin
+          JSON.parse(input["value"].to_s)
+        rescue JSON::ParserError
+          nil
+        end
+        parttype_ids << json["parttype"] if json && json["nodetype"] == "parttype" && json["parttype"]
+      end
+      parttype_ids.uniq!
+
       tools = []
+      parttype_ids.each do |parttype|
+        payload = {
+          "jsn" => {
+            "tab" => "extras",
+            "idepth" => 3,
+            "nodetype" => "parttype",
+            "parttype" => parttype,
+            "jsdata" => { "markets" => [{ "c" => "US" }], "mktlist" => "US", "Show" => 1 }
+          }
+        }
 
-      doc.css("table").each do |table|
-        table.css("tr").each do |row|
-          row_text = text_of(row)
+        result = make_api_request("navnode_fetch", payload)
+        html = html_fill_content(result)
+        next unless html
 
-          if row_text.include?("$") && row_text.length > 20
-            cells = row.css("td, th")
+        listing_doc = Nokogiri::HTML(html)
+        listing_doc.css(".listing-inner").each do |listing|
+          part = PartExtractor.extract_from_listing(listing)
+          next unless part
 
-            if cells.length >= 3
-              tool_info = extract_tool_from_table_row(row, cells)
-              tools << tool_info if tool_info
-            end
-          end
+          tools << ToolInfo.new(
+            name: part.name,
+            part_number: part.part_number,
+            price: part.price,
+            brand: part.brand,
+            url: part.url,
+            image_url: part.image_url,
+            info_url: part.info_url
+          )
         end
       end
 
@@ -534,124 +558,6 @@ module Punkauto
       ToolsResult.new(tools: tools, count: tools.length, category: category_name, category_path: category_path)
     rescue StandardError => e
       raise Error, "Failed to fetch tools for category: #{e.message}"
-    end
-
-    def extract_tool_from_table_row(row, cells)
-      cell_texts = cells.map { |cell| text_of(cell) }
-
-      tool_info = {
-        name: nil,
-        part_number: "Unknown",
-        price: nil,
-        brand: nil,
-        description: nil,
-        url: nil,
-        image_url: nil,
-        info_url: nil,
-        video_url: nil,
-        specifications: nil
-      }
-
-      cell_texts.each do |cell_text|
-        price_match = cell_text.match(/\$([0-9,]+\.?[0-9]*)/)
-        if price_match
-          tool_info[:price] = "$#{price_match[1]}"
-          break
-        end
-      end
-
-      cell_texts.each do |cell_text|
-        part_match = cell_text.match(/\b[A-Z0-9\-]{6,}\b/)
-        if part_match && !cell_text.include?("$")
-          tool_info[:part_number] = part_match[0]
-          break
-        end
-      end
-
-      tool_brands = %w[CRAFTSMAN MATCO SNAP-ON MAC CORNWELL PROTO SK WILLIAMS WRIGHT GEARWRENCH STANLEY DEWALT MILWAUKEE KOBALT HUSKY]
-      cell_texts.each do |cell_text|
-        tool_brands.each do |brand|
-          if cell_text.upcase.include?(brand)
-            tool_info[:brand] = brand
-            break
-          end
-        end
-        break if tool_info[:brand]
-      end
-
-      name_candidates = cell_texts.select { |text| !text.empty? && !text.include?("$") && text.length > 5 }
-      unless name_candidates.empty?
-        longest = name_candidates.max_by(&:length)
-        clean = clean_tool_name(longest, tool_info[:brand], tool_info[:part_number])
-        tool_info[:name] = clean.empty? ? longest : clean
-      end
-
-      extract_urls_from_tool_row(row, tool_info)
-
-      if tool_info[:price] || tool_info[:part_number] != "Unknown"
-        return ToolInfo.new(
-          name: tool_info[:name] || "Unknown Tool",
-          part_number: tool_info[:part_number],
-          price: tool_info[:price],
-          brand: tool_info[:brand],
-          description: tool_info[:description],
-          url: tool_info[:url],
-          image_url: tool_info[:image_url],
-          info_url: tool_info[:info_url],
-          video_url: tool_info[:video_url],
-          specifications: tool_info[:specifications]
-        )
-      end
-
-      nil
-    rescue StandardError
-      nil
-    end
-
-    def clean_tool_name(name, brand, part_number)
-      clean = name.dup
-      clean = clean.gsub(brand, "") if brand
-      clean = clean.gsub(part_number, "") if part_number != "Unknown"
-
-      %w[Info Toggle Intentionally\ blank].each { |noise| clean = clean.gsub(noise, "") }
-
-      clean.strip
-    end
-
-    def extract_urls_from_tool_row(row, tool_info)
-      row.css("a[href]").each do |link|
-        href = link["href"].to_s
-        if href.include?("/en/tools/") && !href.include?("moreinfo")
-          tool_info[:url] = format_tool_url(href)
-          break
-        end
-      end
-
-      img = row.at_css("img")
-      if img
-        src = img["src"].to_s
-        if !src.empty? && !src.include?("flag_") && !src.include?("loading.gif")
-          tool_info[:image_url] = format_tool_url(src)
-        end
-      end
-
-      info_link = row.at_css("a[href*='moreinfo.php'], a[href*='details'], a[href*='info']")
-      if info_link
-        href = info_link["href"].to_s
-        tool_info[:info_url] = format_tool_url(href) unless href.empty?
-      end
-    end
-
-    def format_tool_url(href)
-      return nil if href.nil? || href.empty?
-
-      if href.start_with?("http")
-        href
-      elsif href.start_with?("/")
-        "https://www.rockauto.com#{href}"
-      else
-        "https://www.rockauto.com/#{href}"
-      end
     end
 
     # === PARTS SEARCH METHODS ===
@@ -796,6 +702,13 @@ module Punkauto
       raise Error, "Failed to search parts: #{e.message}"
     end
 
+    # Search for part categories using the "what is part called" feature.
+    #
+    # NOTE: The live RockAuto "what is part called" results are rendered by the
+    # client-side autocomplete (JavaScript) and are not present in the
+    # server-rendered form response, so this method is best-effort and may
+    # return no meaningful results. Prefer `search_parts_by_number` for
+    # reliable part discovery.
     def what_is_part_called(search_query)
       response = @session.get("https://www.rockauto.com/en/partsearch/")
       doc = Nokogiri::HTML(response.body)
@@ -1579,6 +1492,16 @@ module Punkauto
     end
 
     private
+
+    # Return the single HTML payload from a navnode_fetch response, regardless
+    # of whether the key is `navchildren[]` (no groupindex) or
+    # `navchildren[{groupindex}]`.
+    def html_fill_content(result)
+      sections = result["html_fill_sections"]
+      return nil unless sections && !sections.empty?
+
+      sections.values.first
+    end
 
     def part_categories_for_carcode(carcode)
       payload = {

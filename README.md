@@ -144,6 +144,11 @@ Find what a part is called:
 results = client.what_is_part_called("brake pads") # => WhatIsPartCalledResults
 ```
 
+> **Note:** `what_is_part_called` is best-effort — RockAuto renders those
+> results via client-side autocomplete, so they aren't present in the
+> server-rendered response. Use `search_parts_by_number` for reliable part
+> discovery.
+
 `client.search_parts(carcode)` returns the part categories available for a
 carcode without needing the full vehicle context.
 
