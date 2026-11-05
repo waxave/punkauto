@@ -11,14 +11,14 @@ module Punkauto
   # Base client with common HTTP functionality.
   class BaseClient
     API_ENDPOINT = "https://www.rockauto.com/catalog/catalogapi.php"
-    CATALOG_BASE = "https://www.rockauto.com/en/catalog"
 
-    attr_reader :use_mobile_profile, :session
+    attr_reader :use_mobile_profile, :session, :language
     attr_accessor :is_authenticated, :user_email,
                   :last_navigation_context, :current_year_context
 
-    def initialize(use_mobile_profile: true)
+    def initialize(use_mobile_profile: true, language: "en")
       @use_mobile_profile = use_mobile_profile
+      @language = language.to_s.downcase
       @cookie_jar = HTTP::CookieJar.new
       seed_initial_cookies
       @session = build_session
@@ -27,6 +27,16 @@ module Punkauto
       @user_email = nil
       @last_navigation_context = nil
       @current_year_context = nil
+    end
+
+    # Base URL for the localized catalog pages.
+    def catalog_base
+      "https://www.rockauto.com/#{language}/catalog"
+    end
+
+    # Build a localized RockAuto URL from a path (e.g. "/tools/").
+    def localized(path)
+      "https://www.rockauto.com/#{language}#{path}"
     end
 
     def close
@@ -184,7 +194,7 @@ module Punkauto
 
     def simulate_navigation_context(make: nil, year: nil)
       if make
-        catalog_href = "https://www.rockauto.com/en/catalog/#{make.downcase}"
+        catalog_href = "#{catalog_base}/#{make.downcase}"
         @cookie_jar.add(http_cookie("lastcathref", catalog_href))
         @last_navigation_context = catalog_href
       end

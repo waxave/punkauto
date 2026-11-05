@@ -34,6 +34,7 @@ module Punkauto
 
     def initialize(
       use_mobile_profile: true,
+      language: "en",
       enable_caching: true,
       part_cache_hours: 12,
       search_cache_hours: 12,
@@ -41,7 +42,7 @@ module Punkauto
       max_cached_parts: 1000,
       max_cached_searches: 100
     )
-      super(use_mobile_profile: use_mobile_profile)
+      super(use_mobile_profile: use_mobile_profile, language: language)
 
       @nck_token = nil
       @session_initialized = false
@@ -131,7 +132,7 @@ module Punkauto
     # === BASIC CATALOG METHODS ===
 
     def get_makes
-      response = @session.get("#{CATALOG_BASE}/")
+      response = @session.get("#{catalog_base}/")
       doc = Nokogiri::HTML(response.body)
 
       makes = Set.new
@@ -156,7 +157,7 @@ module Punkauto
     def get_years_for_make(make)
       simulate_navigation_context(make: make)
 
-      response = @session.get("#{CATALOG_BASE}/#{make.downcase}")
+      response = @session.get("#{catalog_base}/#{make.downcase}")
       doc = Nokogiri::HTML(response.body)
 
       years = Set.new
@@ -183,7 +184,7 @@ module Punkauto
     end
 
     def get_models_for_make_year(make, year)
-      response = @session.get("#{CATALOG_BASE}/#{make.downcase},#{year}")
+      response = @session.get("#{catalog_base}/#{make.downcase},#{year}")
       doc = Nokogiri::HTML(response.body)
 
       models = Set.new
@@ -205,7 +206,7 @@ module Punkauto
     end
 
     def get_engines_for_vehicle(make, year, model)
-      url = "#{CATALOG_BASE}/#{make.downcase},#{year},#{model.downcase}"
+      url = "#{catalog_base}/#{make.downcase},#{year},#{model.downcase}"
       response = @session.get(url)
       doc = Nokogiri::HTML(response.body)
 
@@ -461,9 +462,9 @@ module Punkauto
 
     def get_tool_categories(category_path = "")
       url = if category_path.empty?
-              "https://www.rockauto.com/en/tools/"
+              localized("/tools/")
             else
-              "https://www.rockauto.com/en/tools/#{category_path}"
+              localized("/tools/#{category_path}")
             end
 
       response = @session.get(url)
@@ -476,9 +477,9 @@ module Punkauto
         href = link["href"].to_s
         text = text_of(link)
 
-        next unless href.include?("/en/tools/") && !text.empty? && text.length > 2
+        next unless href.include?("/#{language}/tools/") && !text.empty? && text.length > 2
 
-        path_part = href.sub("/en/tools/", "").strip("/")
+        path_part = href.sub("/#{language}/tools/", "").strip("/")
 
         if category_path.empty?
           next unless !path_part.empty? && !path_part.include?(",")
@@ -504,7 +505,7 @@ module Punkauto
     end
 
     def get_tools_by_category(category_path)
-      url = "https://www.rockauto.com/en/tools/#{category_path}"
+      url = localized("/tools/#{category_path}")
       response = @session.get(url)
       doc = Nokogiri::HTML(response.body)
 
@@ -565,7 +566,7 @@ module Punkauto
     def get_manufacturers(use_cache: true)
       return @manufacturer_cache if use_cache && @manufacturer_cache
 
-      response = @session.get("https://www.rockauto.com/en/partsearch/")
+      response = @session.get(localized("/partsearch/"))
       doc = Nokogiri::HTML(response.body)
 
       manufacturer_select = doc.at_css("select[id='manufacturer_partsearch_007']")
@@ -590,7 +591,7 @@ module Punkauto
     def get_part_groups(use_cache: true)
       return @part_group_cache if use_cache && @part_group_cache
 
-      response = @session.get("https://www.rockauto.com/en/partsearch/")
+      response = @session.get(localized("/partsearch/"))
       doc = Nokogiri::HTML(response.body)
 
       part_group_select = doc.at_css("select[id='partgroup_partsearch_007']")
@@ -615,7 +616,7 @@ module Punkauto
     def get_part_types(use_cache: true)
       return @part_type_cache if use_cache && @part_type_cache
 
-      response = @session.get("https://www.rockauto.com/en/partsearch/")
+      response = @session.get(localized("/partsearch/"))
       doc = Nokogiri::HTML(response.body)
 
       part_type_select = doc.at_css("select[id='parttype_partsearch_007']")
@@ -644,7 +645,7 @@ module Punkauto
     end
 
     def search_parts_by_number(part_number, manufacturer: nil, part_group: nil, part_type: nil, part_name: nil)
-      response = @session.get("https://www.rockauto.com/en/partsearch/")
+      response = @session.get(localized("/partsearch/"))
       doc = Nokogiri::HTML(response.body)
 
       nck_input = doc.at_css("input[name='_nck']")
@@ -684,10 +685,10 @@ module Punkauto
 
       headers = {
         "Content-Type" => "application/x-www-form-urlencoded",
-        "Referer" => "https://www.rockauto.com/en/partsearch/"
+        "Referer" => localized("/partsearch/")
       }
 
-      search_response = @session.post("https://www.rockauto.com/en/partsearch/", form_data, headers)
+      search_response = @session.post(localized("/partsearch/"), form_data, headers)
       result_doc = Nokogiri::HTML(search_response.body)
       parts = parse_parts_search_results(result_doc)
 
@@ -710,7 +711,7 @@ module Punkauto
     # return no meaningful results. Prefer `search_parts_by_number` for
     # reliable part discovery.
     def what_is_part_called(search_query)
-      response = @session.get("https://www.rockauto.com/en/partsearch/")
+      response = @session.get(localized("/partsearch/"))
       doc = Nokogiri::HTML(response.body)
 
       nck_input = doc.at_css("input[name='_nck']")
@@ -727,10 +728,10 @@ module Punkauto
 
       headers = {
         "Content-Type" => "application/x-www-form-urlencoded",
-        "Referer" => "https://www.rockauto.com/en/partsearch/"
+        "Referer" => localized("/partsearch/")
       }
 
-      search_response = @session.post("https://www.rockauto.com/en/partsearch/", form_data, headers)
+      search_response = @session.post(localized("/partsearch/"), form_data, headers)
       result_doc = Nokogiri::HTML(search_response.body)
       results = parse_what_is_part_called_results(result_doc)
 
@@ -1226,7 +1227,7 @@ module Punkauto
 
       request = ExternalOrderRequest.new(email_or_phone: email_or_phone, order_number: order_number)
 
-      response = @session.get("https://www.rockauto.com/en/accountactivity/")
+      response = @session.get(localized("/accountactivity/"))
       doc = Nokogiri::HTML(response.body)
 
       nck_input = doc.at_css("input[name='_nck']")
@@ -1241,10 +1242,10 @@ module Punkauto
 
       headers = {
         "Content-Type" => "application/x-www-form-urlencoded",
-        "Referer" => "https://www.rockauto.com/en/accountactivity/"
+        "Referer" => localized("/accountactivity/")
       }
 
-      add_response = @session.post("https://www.rockauto.com/en/accountactivity/", form_data, headers)
+      add_response = @session.post(localized("/accountactivity/"), form_data, headers)
       response_text = add_response.body.to_s.downcase
 
       success_indicators = %w[added success order\ added]
@@ -1261,7 +1262,7 @@ module Punkauto
     def get_saved_addresses
       raise AuthenticationRequiredError, "Authentication required for accessing saved addresses" unless @is_authenticated
 
-      response = @session.get("https://www.rockauto.com/en/profile/", BROWSER_HEADERS)
+      response = @session.get(localized("/profile/"), BROWSER_HEADERS)
       doc = Nokogiri::HTML(response.body)
       addresses = []
 
@@ -1336,7 +1337,7 @@ module Punkauto
     def get_saved_vehicles
       raise AuthenticationRequiredError, "Authentication required for accessing saved vehicles" unless @is_authenticated
 
-      response = @session.get("https://www.rockauto.com/en/profile/", BROWSER_HEADERS)
+      response = @session.get(localized("/profile/"), BROWSER_HEADERS)
       doc = Nokogiri::HTML(response.body)
       vehicles = []
 
@@ -1411,7 +1412,7 @@ module Punkauto
       saved_addresses = get_saved_addresses
       saved_vehicles = get_saved_vehicles
 
-      response = @session.get("https://www.rockauto.com/en/accountactivity/", BROWSER_HEADERS)
+      response = @session.get(localized("/accountactivity/"), BROWSER_HEADERS)
       doc = Nokogiri::HTML(response.body)
 
       has_discount_codes = doc.xpath("//text()").any? { |node| node.text.downcase.include?("discount code") }
@@ -1434,7 +1435,7 @@ module Punkauto
 
       filter_params = OrderHistoryFilter.new if filter_params.nil?
 
-      response = @session.get("https://www.rockauto.com/en/orderhistory/", BROWSER_HEADERS)
+      response = @session.get(localized("/orderhistory/"), BROWSER_HEADERS)
       doc = Nokogiri::HTML(response.body)
       orders = []
 

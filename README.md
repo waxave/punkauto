@@ -62,6 +62,7 @@ can also manage the session manually with `client.close`.
 
 ```ruby
 client = Punkauto::Client.new(
+  language: "en",             # language code: en, es, de, fr, ...
   use_mobile_profile: true,   # mobile user-agent reduces CAPTCHA triggers
   enable_caching: true,
   part_cache_hours: 12,
@@ -74,6 +75,7 @@ client = Punkauto::Client.new(
 
 | Option | Default | Description |
 |---|---|---|
+| `language` | `"en"` | Language code used in the URL path (`/en/`, `/es/`, `/de/`, `/fr/`, ...) |
 | `use_mobile_profile` | `true` | Use a mobile browser user-agent and headers |
 | `enable_caching` | `true` | Enable in-memory caching of parts and searches |
 | `part_cache_hours` | `12` | TTL (hours) for cached individual parts |
