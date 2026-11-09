@@ -69,7 +69,10 @@ client = Punkauto::Client.new(
   search_cache_hours: 12,
   dropdown_cache_hours: 24,
   max_cached_parts: 1000,
-  max_cached_searches: 100
+  max_cached_searches: 100,
+  cache_backend: :sqlite,     # :sqlite (persistent, default) or :memory
+  cache_path: "./punkauto.sqlite3", # optional; defaults under XDG cache dir
+  display: :original          # :original (default) or :transformed
 )
 ```
 
@@ -77,12 +80,27 @@ client = Punkauto::Client.new(
 |---|---|---|
 | `language` | `"en"` | Language code used in the URL path (`/en/`, `/es/`, `/de/`, `/fr/`, ...) |
 | `use_mobile_profile` | `true` | Use a mobile browser user-agent and headers |
-| `enable_caching` | `true` | Enable in-memory caching of parts and searches |
-| `part_cache_hours` | `12` | TTL (hours) for cached individual parts |
-| `search_cache_hours` | `12` | TTL (hours) for cached search results |
-| `dropdown_cache_hours` | `24` | TTL (hours) for cached dropdown options |
-| `max_cached_parts` | `1000` | Maximum parts held in cache |
-| `max_cached_searches` | `100` | Maximum search results held in cache |
+| `enable_caching` | `true` | Enable result caching |
+| `part_cache_hours` | `12` | Expiry (hours) for cached vehicle-part results |
+| `search_cache_hours` | `12` | Expiry (hours) for cached part-search and tool results |
+| `dropdown_cache_hours` | `24` | Expiry (hours) for catalog and dropdown results |
+| `max_cached_parts` | `1000` | Cache capacity setting for part data |
+| `max_cached_searches` | `100` | Cache capacity setting for search results |
+| `cache_backend` | `:sqlite` | `:sqlite` shares cache across clients/processes; `:memory` is client-local |
+| `cache_path` | `$XDG_CACHE_HOME/punkauto/cache.sqlite3` or `~/.cache/punkauto/cache.sqlite3` | SQLite location; override with `PUNKAUTO_CACHE_PATH` |
+| `display` | `:original` | Return original text or titleize supported display fields with `:transformed` |
+
+For Rails, keep the writable database with the application, not inside the gem:
+
+```ruby
+Punkauto::Client.new(
+  cache_path: Rails.root.join("storage/punkauto/cache.sqlite3").to_s
+)
+```
+
+Add the chosen `storage/` path to `.gitignore`. In production, put it on a
+persistent volume if it must survive deployments. SQLite is a local-file cache;
+separate application servers need a shared filesystem to share one database.
 
 ## Public API
 
@@ -211,7 +229,7 @@ client.authentication_status    # => Hash of session state
 client.cache_stats            # => Hash of cache settings and statistics
 client.clear_all_caches       # => Hash of what was cleared
 client.clear_expired_caches   # => Hash of expired entry counts
-client.clear_parts_search_cache
+client.clear_parts_search_cache # clears this client's dropdown objects
 
 client.configure_cache(
   enable_caching: false,
@@ -219,6 +237,36 @@ client.configure_cache(
   max_cached_parts: 500
 )
 ```
+
+The default SQLite cache is a persistent, versioned relational database.
+`languages` scopes localized records; makes, years, models, engines, part
+categories, parts, tool categories, and tools are stored as linked entities.
+Cached query sets reference those records and preserve result order. Cache hits
+are rebuilt as the existing Ruby model types. The default file is
+`$XDG_CACHE_HOME/punkauto/cache.sqlite3`, or `~/.cache/punkauto/cache.sqlite3`
+when `XDG_CACHE_HOME` is unset. Set `cache_path:` or `PUNKAUTO_CACHE_PATH` to
+choose a different file. The earlier opaque `cache_entries` table is retained;
+its language and entity relationships are not guessed during migration.
+
+Structured tables retain the original value in its regular column (`name`) and
+store the normalized/titleized presentation value separately in `display_name`.
+Titleization uses basic language-specific small-word rules for English,
+Spanish, French, and German. Original API values are used for identifiers,
+group names, URLs, part numbers, and default Ruby model responses. Cache keys
+include operation arguments and language. Entries expire according to the
+configured TTL settings and are subject to cache-capacity limits. Account data,
+credentials, cookies, and order lookups are not persisted. The CLI shares the
+same SQLite cache by default. Its cache commands operate on that database;
+`cache clear` removes query sets and now-unlinked entities but retains the
+language registry and legacy table.
+`cache clear-search` only resets the current client's in-memory dropdown
+objects; it does not remove persistent SQLite query entries. Use `cache clear`
+to clear the shared persistent results.
+
+Set `display: :transformed` to receive titleized display fields from the client.
+The default `:original` preserves RockAuto's text. This setting does not affect
+cache keys or lookup values: identifiers, category `group_name`s, part numbers,
+and URLs remain unchanged. Both display modes reuse the same cached result.
 
 ## Error handling
 
@@ -254,17 +302,80 @@ end
 
 ## CLI
 
+Run from an installed gem as `punkauto ...`, or directly from a checkout with
+`./exe/punkauto ...`. Global options go before the command. Results are printed
+as JSON; `--json` is accepted as an explicit output-mode flag.
+
 ```sh
-punkauto Honda 2021 Civic          # list part categories
-punkauto Honda 2021 Civic brake    # search the "brake" category
+punkauto makes
+punkauto years HONDA
+punkauto models HONDA 2021
+punkauto engines HONDA 2021 CIVIC
+punkauto vehicle HONDA 2021 CIVIC --engine-index 1
+punkauto categories HONDA 2021 CIVIC
+punkauto parts HONDA 2021 CIVIC "Brake & Wheel Hub"
+punkauto categories --carcode 12345
+punkauto subcategory HONDA 2021 CIVIC '/en/catalog/...'
+
+punkauto manufacturers
+punkauto part-groups
+punkauto part-types
+punkauto search '90919-*' --manufacturer DENSO --part-group Ignition
+punkauto part-name 'brake pads'
+punkauto tools categories
+punkauto tools categories 'Engine,Oil+Pump+Priming+Tool'
+punkauto tools list 'Engine,Oil+Pump+Priming+Tool'
+punkauto orders status customer@example.com 123456789
+punkauto orders request-list email customer@example.com
+
+punkauto --json makes
+punkauto --language es makes
+punkauto --display transformed makes
+punkauto --cache-path ./tmp/punkauto.sqlite3 cache stats
+punkauto --cache-backend memory makes
+punkauto --no-cache makes
+
+punkauto account addresses --email customer@example.com
+punkauto account vehicles
+punkauto account activity
+punkauto account orders --date-range '1 Year'
+punkauto account add-order other@example.com 123456789
+
+punkauto cache stats
+punkauto cache clear-expired
+punkauto cache clear-search
+punkauto cache clear
+
+# Backward-compatible shorthand:
+punkauto Honda 2021 Civic brake
 ```
+
+Use `punkauto help` for the complete command summary. `--language CODE`,
+`--display original|transformed`, `--cache-backend sqlite|memory`,
+`--cache-path PATH`, `--no-cache`, and `--json` are global options and should
+appear before the command. Account operations log in for that invocation and
+prompt for the password without echoing it. Set `PUNKAUTO_EMAIL` and
+`PUNKAUTO_PASSWORD` for non-interactive use; do not put passwords in command
+arguments. Login state is not persisted. Unlike the old in-memory-only CLI,
+the default SQLite cache does persist across invocations; memory-backend cache
+entries do not.
 
 ## Development
 
+This repository uses [mise](https://mise.jdx.dev/) to select Ruby and run
+project tasks. The pinned Ruby version is in `mise.toml`.
+
 ```sh
-bundle install
-bundle exec rspec
+mise install          # install the configured Ruby version
+mise run setup        # bundle install
+mise run test         # full RSpec suite
+mise run test:cli     # CLI specs only
+mise run check        # Ruby syntax checks and full test suite
+mise run build        # build punkauto.gem
 ```
+
+Run `mise tasks` to list the available tasks. The equivalent direct test
+commands are `bundle exec rspec` and `bundle exec rspec spec/cli_spec.rb`.
 
 ## Disclaimer
 
