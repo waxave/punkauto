@@ -1,0 +1,30 @@
+[tools]
+ruby = "4.0.9"
+
+[tasks.setup]
+description = "Install Ruby gem dependencies"
+run = "bundle install"
+
+[tasks.test]
+description = "Run the complete RSpec suite"
+run = "bundle exec rspec"
+
+[tasks."test:cli"]
+description = "Run CLI specs"
+run = "bundle exec rspec spec/cli_spec.rb"
+
+[tasks.check]
+description = "Run Ruby syntax checks and the complete test suite"
+run = """
+set -eu
+ruby -c lib/punkauto.rb
+ruby -c lib/punkauto/client.rb
+ruby -c lib/punkauto/cache_store.rb
+ruby -c lib/punkauto/cli.rb
+ruby -c exe/punkauto
+bundle exec rspec
+"""
+
+[tasks.build]
+description = "Build the punkauto gem"
+run = "gem build punkauto.gemspec"
