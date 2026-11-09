@@ -25,6 +25,23 @@ RSpec.describe Punkauto::Client do
       expect(result.makes).to eq(%w[HONDA TOYOTA])
       expect(result.count).to eq(2)
     end
+
+    it "reuses the default SQLite cache across client instances" do
+      first = Punkauto::Client.new.get_makes
+      second = Punkauto::Client.new.get_makes
+
+      expect(second).to eq(first)
+      expect(a_request(:get, "https://www.rockauto.com/en/catalog/")).to have_been_made.once
+    end
+
+    it "supports transformed and original views over the same cached response" do
+      transformed = Punkauto::Client.new(display: :transformed).get_makes
+      original = Punkauto::Client.new(display: :original).get_makes
+
+      expect(transformed.makes).to eq(%w[Honda Toyota])
+      expect(original.makes).to eq(%w[HONDA TOYOTA])
+      expect(a_request(:get, "https://www.rockauto.com/en/catalog/")).to have_been_made.once
+    end
   end
 
   describe "#get_years_for_make" do
@@ -72,7 +89,7 @@ RSpec.describe Punkauto::Client do
     it "caches results" do
       first = subject.get_manufacturers
       second = subject.get_manufacturers
-      expect(second).to equal(first)
+      expect(second).to eq(first)
     end
   end
 

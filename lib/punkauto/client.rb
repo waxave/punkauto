@@ -30,7 +30,7 @@ module Punkauto
       "Pragma" => "no-cache"
     }.freeze
 
-    attr_reader :cache_config, :dropdown_cache_hours
+    attr_reader :cache_config, :dropdown_cache_hours, :display
 
     def initialize(
       use_mobile_profile: true,
@@ -40,8 +40,15 @@ module Punkauto
       search_cache_hours: 12,
       dropdown_cache_hours: 24,
       max_cached_parts: 1000,
-      max_cached_searches: 100
+      max_cached_searches: 100,
+      cache_backend: :sqlite,
+      cache_path: nil,
+      display: :original
     )
+      @display = display.respond_to?(:to_sym) ? display.to_sym : display
+      unless %i[original transformed].include?(@display)
+        raise ArgumentError, "display must be :original or :transformed"
+      end
       super(use_mobile_profile: use_mobile_profile, language: language)
 
       @nck_token = nil
@@ -56,6 +63,19 @@ module Punkauto
       )
 
       @part_cache = enable_caching ? @cache_config.create_cache : nil
+      @cache_backend = cache_backend.to_sym
+      @cache_path = cache_path
+      unless %i[sqlite memory].include?(@cache_backend)
+        raise ArgumentError, "cache_backend must be :sqlite or :memory"
+      end
+      @result_cache = if enable_caching
+                        if @cache_backend == :sqlite
+                          SQLiteResultCache.new(path: cache_path || ENV["PUNKAUTO_CACHE_PATH"] || SQLiteResultCache::DEFAULT_PATH,
+                                                max_entries: max_cached_parts + max_cached_searches)
+                        else
+                          MemoryResultCache.new(max_entries: max_cached_parts + max_cached_searches)
+                        end
+                      end
 
       @dropdown_cache_hours = dropdown_cache_hours
       @manufacturer_cache = nil
@@ -486,10 +506,10 @@ module Punkauto
         tools_prefix = "/#{language}/tools/"
         next unless path.start_with?(tools_prefix) && !text.empty? && text.length > 2
 
-        path_part = href.sub("/#{language}/tools/", "").strip("/")
+        path_part = path.delete_prefix(tools_prefix).strip("/")
 
         if category_path.empty?
-          next unless !path_part.empty? && !path_part.include?(",")
+          next unless !path_part.empty? && !path_part.include?(",") && !path_part.include?("/")
 
           categories << ToolCategory.new(name: text, group_name: text, href: href, level: 1)
         else
@@ -798,6 +818,8 @@ module Punkauto
       }
 
       stats["part_cache"] = @part_cache.cache_stats if @part_cache
+      stats["persistent_cache"] = @result_cache&.stats
+      stats["cache_backend"] = @cache_backend.to_s
       stats
     end
 
@@ -820,6 +842,8 @@ module Punkauto
         cleared["searches_cleared"] = stats[:cached_results]
         @part_cache.clear_all
       end
+
+      cleared["result_cache_entries_cleared"] = @result_cache ? @result_cache.clear : 0
 
       cleared
     end
@@ -856,6 +880,8 @@ module Punkauto
         cleared["expired_searches"] = expired_searches
       end
 
+      cleared["expired_result_entries"] = @result_cache ? @result_cache.clear_expired : 0
+
       cleared
     end
 
@@ -865,8 +891,14 @@ module Punkauto
         @cache_config.enabled = enable_caching
         if !enable_caching
           @part_cache = nil
+          @result_cache = nil
         elsif @part_cache.nil?
           @part_cache = @cache_config.create_cache
+          @result_cache = if @cache_backend == :sqlite
+                            SQLiteResultCache.new(path: @cache_path || ENV["PUNKAUTO_CACHE_PATH"] || SQLiteResultCache::DEFAULT_PATH)
+                          else
+                            MemoryResultCache.new(max_entries: @cache_config.max_parts + @cache_config.max_results)
+                          end
         end
       end
 
