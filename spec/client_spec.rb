@@ -11,6 +11,10 @@ RSpec.describe Punkauto::Client do
             <a href="/en/catalog/TOYOTA">Toyota</a>
             <a href="/en/catalog/HONDA">Honda</a>
             <a href="/en/catalog/HONDA,2020">Honda 2020</a>
+            <a href="/en/catalog/?LANGUAGE=DE">Deutsch</a>
+            <a href="/en/catalog/?NEWCURRENCY=USD">US Dollars</a>
+            <a href="/en/catalog/?MOBILEMENU=SHOW&amp;CURMENU=SHOW">Menu</a>
+            <a href="/en/catalog/?LANGUAGE=FR&amp;MOBILEMENU=SHOW">French menu</a>
           </body></html>
         HTML
     end

@@ -10,6 +10,10 @@ RSpec.describe Punkauto::Client do
           <html><body>
             <a class="navlabellink" href="/en/tools/engine">Engine</a>
             <a class="navlabellink" href="/en/tools/brake+&amp;+wheel+hub">Brake &amp; Wheel Hub</a>
+            <a class="navlabellink" href="/en/tools/?mobilemenu=show&amp;langmenu=show">Language [English]</a>
+            <a class="navlabellink" href="/en/tools/?language=es">Español</a>
+            <a class="navlabellink" href="/en/tools/?newcurrency=USD">US Dollars ($)</a>
+            <a class="navlabellink" href="/en/tools/?mobilemenu=show&amp;curmenu=show">Show Prices In</a>
             <a href="/help/?page=1" class="nodeflag-a"><img alt="the USA flag"></a>
           </body></html>
         HTML
@@ -19,6 +23,16 @@ RSpec.describe Punkauto::Client do
       result = subject.get_tool_categories
       expect(result).to be_a(Punkauto::ToolCategories)
       expect(result.categories.map(&:name)).to eq(["Engine", "Brake & Wheel Hub"])
+    end
+
+    it "does not treat tools query links as categories" do
+      result = subject.get_tool_categories
+      expect(result.categories.map(&:href)).not_to include(
+        "/en/tools/?mobilemenu=show&amp;langmenu=show",
+        "/en/tools/?language=es",
+        "/en/tools/?newcurrency=USD"
+      )
+      expect(result.count).to eq(2)
     end
   end
 

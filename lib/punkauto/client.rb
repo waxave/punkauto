@@ -140,12 +140,15 @@ module Punkauto
         href = link["href"].to_s
         next unless href.include?("/catalog/") && href.count("/") >= 3
 
-        parts = href.strip("/").split("/")
-        next if parts.length >= 2 && parts[1] != "catalog"
+        # Catalog filter links (language, currency, mobile menu, etc.) often
+        # use a query string after the catalog root. They are not vehicle makes.
+        path = href.split(/[?#]/, 2).first
+        parts = path.to_s.strip("/").split("/")
+        next unless parts.length == 3 && parts[1] == "catalog"
         next unless parts.length >= 3
 
-        make = parts[2].split(",").first
-        makes.add(make.upcase) if make && make.length > 1
+        make = parts[2].split(",", 2).first
+        makes.add(make.upcase) if make && make.match?(/\A[A-Za-z][A-Za-z0-9 -]*\z/)
       end
 
       sorted = makes.to_a.sort
@@ -477,7 +480,11 @@ module Punkauto
         href = link["href"].to_s
         text = text_of(link)
 
-        next unless href.include?("/#{language}/tools/") && !text.empty? && text.length > 2
+        # Language, currency, and mobile-menu links may share the tools URL
+        # but are query parameters, not catalog category paths.
+        path = href.split(/[?#]/, 2).first.to_s
+        tools_prefix = "/#{language}/tools/"
+        next unless path.start_with?(tools_prefix) && !text.empty? && text.length > 2
 
         path_part = href.sub("/#{language}/tools/", "").strip("/")
 
