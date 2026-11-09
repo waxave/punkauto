@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-09
+
+### Added
+- Persistent relational SQLite result caching, with configurable backend and path.
+- A command-line interface for catalog, part search, tools, orders, account, and
+  cache operations.
+- Optional transformed display text while preserving original lookup values.
+
+### Fixed
+- Ignore catalog navigation and query links when parsing vehicle makes and tool
+  categories.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added
