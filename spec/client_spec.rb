@@ -6,17 +6,7 @@ RSpec.describe Punkauto::Client do
   describe "#get_makes" do
     before do
       stub_request(:get, "https://www.rockauto.com/en/catalog/")
-        .to_return(status: 200, body: <<~HTML, headers: { "Content-Type" => "text/html" })
-          <html><body>
-            <a href="/en/catalog/TOYOTA">Toyota</a>
-            <a href="/en/catalog/HONDA">Honda</a>
-            <a href="/en/catalog/HONDA,2020">Honda 2020</a>
-            <a href="/en/catalog/?LANGUAGE=DE">Deutsch</a>
-            <a href="/en/catalog/?NEWCURRENCY=USD">US Dollars</a>
-            <a href="/en/catalog/?MOBILEMENU=SHOW&amp;CURMENU=SHOW">Menu</a>
-            <a href="/en/catalog/?LANGUAGE=FR&amp;MOBILEMENU=SHOW">French menu</a>
-          </body></html>
-        HTML
+        .to_return(status: 200, body: fixture("catalog/makes.html"), headers: { "Content-Type" => "text/html" })
     end
 
     it "returns sorted makes" do
@@ -48,14 +38,7 @@ RSpec.describe Punkauto::Client do
     before do
       stub_request(:post, catalogapi).to_return(status: 200, body: "{}")
       stub_request(:get, "https://www.rockauto.com/en/catalog/honda")
-        .to_return(status: 200, body: <<~HTML, headers: { "Content-Type" => "text/html" })
-          <html><body>
-            <a href="/en/catalog/honda,2020">2020</a>
-            <a href="/en/catalog/honda,2019">2019</a>
-            <a href="/en/catalog/honda,1950">1950</a>
-            <a href="/en/catalog/honda,1800">1800</a>
-          </body></html>
-        HTML
+        .to_return(status: 200, body: fixture("catalog/years.html"), headers: { "Content-Type" => "text/html" })
     end
 
     it "returns years in descending order within range" do
@@ -68,15 +51,7 @@ RSpec.describe Punkauto::Client do
   describe "#get_manufacturers" do
     before do
       stub_request(:get, "https://www.rockauto.com/en/partsearch/")
-        .to_return(status: 200, body: <<~HTML, headers: { "Content-Type" => "text/html" })
-          <html><body>
-            <select id="manufacturer_partsearch_007">
-              <option value="">All</option>
-              <option value="ACDELCO">ACDELCO</option>
-              <option value="3M">3M</option>
-            </select>
-          </body></html>
-        HTML
+        .to_return(status: 200, body: fixture("partsearch/manufacturers.html"), headers: { "Content-Type" => "text/html" })
     end
 
     it "parses manufacturer options and supports lookup" do
@@ -96,11 +71,11 @@ RSpec.describe Punkauto::Client do
   describe "#search_parts_by_number" do
     before do
       stub_request(:get, "https://www.rockauto.com/en/partsearch/")
-        .to_return(status: 200, body: '<input name="_nck" value="token123">',
+        .to_return(status: 200, body: fixture("partsearch/token.html"),
                    headers: { "Content-Type" => "text/html" })
 
       stub_request(:post, "https://www.rockauto.com/en/partsearch/")
-        .to_return(status: 200, body: "<html></html>", headers: { "Content-Type" => "text/html" })
+        .to_return(status: 200, body: fixture("partsearch/empty-results.html"), headers: { "Content-Type" => "text/html" })
     end
 
     it "returns a PartSearchResult" do
@@ -113,7 +88,7 @@ RSpec.describe Punkauto::Client do
   describe "#lookup_order_status" do
     before do
       stub_request(:get, "https://www.rockauto.com/orderstatus/")
-        .to_return(status: 200, body: '<input name="_nck" value="token123">',
+        .to_return(status: 200, body: fixture("orderstatus/token.html"),
                    headers: { "Content-Type" => "text/html" })
 
       stub_request(:post, "https://www.rockauto.com/orderstatus/orderstatus.php")
@@ -129,7 +104,7 @@ RSpec.describe Punkauto::Client do
 
     it "returns a system error when no security token is present" do
       stub_request(:get, "https://www.rockauto.com/orderstatus/")
-        .to_return(status: 200, body: "<html></html>", headers: { "Content-Type" => "text/html" })
+        .to_return(status: 200, body: fixture("orderstatus/no-token.html"), headers: { "Content-Type" => "text/html" })
 
       result = subject.lookup_order_status("customer@example.com", "123")
       expect(result.error.error_type).to eq("SYSTEM_ERROR")

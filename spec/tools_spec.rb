@@ -6,17 +6,7 @@ RSpec.describe Punkauto::Client do
   describe "#get_tool_categories" do
     before do
       stub_request(:get, "https://www.rockauto.com/en/tools/")
-        .to_return(status: 200, body: <<~HTML, headers: { "Content-Type" => "text/html" })
-          <html><body>
-            <a class="navlabellink" href="/en/tools/engine">Engine</a>
-            <a class="navlabellink" href="/en/tools/brake+&amp;+wheel+hub">Brake &amp; Wheel Hub</a>
-            <a class="navlabellink" href="/en/tools/?mobilemenu=show&amp;langmenu=show">Language [English]</a>
-            <a class="navlabellink" href="/en/tools/?language=es">Español</a>
-            <a class="navlabellink" href="/en/tools/?newcurrency=USD">US Dollars ($)</a>
-            <a class="navlabellink" href="/en/tools/?mobilemenu=show&amp;curmenu=show">Show Prices In</a>
-            <a href="/help/?page=1" class="nodeflag-a"><img alt="the USA flag"></a>
-          </body></html>
-        HTML
+        .to_return(status: 200, body: fixture("tools/categories.html"), headers: { "Content-Type" => "text/html" })
     end
 
     it "parses only category links" do
@@ -37,23 +27,8 @@ RSpec.describe Punkauto::Client do
   end
 
   describe "#get_tools_by_category" do
-    let(:jsn) do
-      { "groupindex" => "3", "tab" => "extras", "idepth" => 2, "groupname" => "Engine",
-        "subgroupname" => "Oil Filter", "parttype" => "1002109", "nodetype" => "parttype",
-        "parentgroupindex" => "2" }
-    end
-    let(:category_page) do
-      %(<html><body><input id="jsn[3]" value="#{JSON.generate(jsn).gsub('"', '&quot;')}"></body></html>)
-    end
-    let(:listing_html) do
-      '<div class="listing-inner">' \
-        '<span class="listing-final-manufacturer">ACME</span>' \
-        '<span class="listing-final-partnumber">TOOL-123</span>' \
-        '<span class="listing-footnote-text">Category: Oil Filter Plug</span>' \
-        '<span class="listing-price">$12.99</span>' \
-        '<a href="https://www.rockauto.com/en/moreinfo.php?pk=1">Info</a>' \
-        '</div>'
-    end
+    let(:category_page) { fixture("tools/category.html") }
+    let(:listing_html) { fixture("tools/listing.html") }
 
     before do
       stub_request(:get, "https://www.rockauto.com/en/tools/engine")

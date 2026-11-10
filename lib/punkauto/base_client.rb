@@ -269,10 +269,13 @@ module Punkauto
 
     def build_session
       Faraday.new(headers: default_headers, request: { timeout: 30, open_timeout: 30 }) do |conn|
+        # Cookie handling must run inside redirect handling so cookies set on
+        # a redirect response (including RockAuto's language cookie) are
+        # available to the redirected request.
+        conn.response :follow_redirects
         conn.use :cookie_jar, jar: @cookie_jar
         conn.request :url_encoded
         conn.request :gzip
-        conn.response :follow_redirects
         conn.response :raise_error
         conn.adapter Faraday.default_adapter
       end
