@@ -80,4 +80,21 @@ RSpec.describe Punkauto::CLI do
     expect(described_class.main(%w[--display transformed makes], out: out, err: err, client_factory: factory)).to eq(0)
     expect(received_options[:display]).to eq(:transformed)
   end
+
+  it "prints transformed vehicle and engine text when requested" do
+    stub_request(:get, "https://www.rockauto.com/es/catalog/honda,2010,accord")
+      .to_return(status: 200, body: fixture("catalog/engines.html"), headers: { "Content-Type" => "text/html" })
+    factory = ->(options) { Punkauto::Client.new(**options) }
+
+    status = described_class.main(
+      %w[--display=transformed --language=es vehicle honda 2010 accord],
+      out: out, err: err, client_factory: factory
+    )
+
+    result = JSON.parse(out.string)
+    expect(status).to eq(0)
+    expect(result).to include("make" => "Honda", "model" => "Accord", "year" => 2010)
+    expect(result.dig("engine", "description")).to eq("2.4L L4")
+    expect(result["carcode"]).to eq("1444945")
+  end
 end

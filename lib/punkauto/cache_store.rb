@@ -29,7 +29,7 @@ module Punkauto
         elsif index.positive? && small_words.include?(word)
           word
         else
-          word.sub(/\A\p{L}/u) { |letter| letter.upcase }
+          word.sub(/\A([^\p{L}]*)(\p{L})/u) { "#{Regexp.last_match(1)}#{Regexp.last_match(2).upcase}" }
         end
       end.join
     end
@@ -105,6 +105,7 @@ module Punkauto
       "ToolInfo" => { name: :string },
       "ToolCategories" => {},
       "ToolsResult" => { category: :string },
+      "ManufacturerOptions" => { manufacturers: :options },
       "PartGroupOptions" => { part_groups: :options },
       "PartTypeOptions" => { part_types: :options },
       "WhatIsPartCalledResult" => { main_category: :string, subcategory: :string, full_path: :string },
@@ -119,6 +120,8 @@ module Punkauto
       when Vehicle
         vehicle = Vehicle.new(make: DisplayText.titleize(value.make, language: language), year: value.year,
                               model: DisplayText.titleize(value.model, language: language), engine: call(value.engine, language: language))
+        vehicle.instance_variable_set(:@make, DisplayText.titleize(value.make, language: language))
+        vehicle.instance_variable_set(:@model, DisplayText.titleize(value.model, language: language))
         vehicle.client = value.client
         vehicle
       when Model then present_model(value, language)
@@ -162,7 +165,12 @@ module Punkauto
     end
 
     def display_text(value, language)
-      value.nil? ? nil : DisplayText.titleize(value, language: language)
+      return nil if value.nil?
+
+      text = value.to_s
+                 .gsub(/(\d+(?:\.\d+)?)l\b/i) { "#{Regexp.last_match(1)}L" }
+                 .gsub(/\b([lv])(\d+)\b/i) { "#{Regexp.last_match(1).upcase}#{Regexp.last_match(2)}" }
+      DisplayText.titleize(text, language: language)
     end
   end
 

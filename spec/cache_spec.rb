@@ -119,6 +119,81 @@ RSpec.describe Punkauto::SQLiteResultCache do
     expect(Punkauto::CacheCodec.load(Punkauto::CacheCodec.dump(transformed)).part_groups.first.text).to eq("BRAKE & WHEEL HUB")
   end
 
+  it "transforms every supported display model while preserving lookup fields" do
+    option = Punkauto::PartSearchOption.new(value: "BRAKE", text: "BRAKE & WHEEL HUB")
+    category = Punkauto::PartCategory.new(name: "BRAKE & WHEEL HUB", group_name: "BRAKE+&+WHEEL+HUB")
+    part = Punkauto::PartInfo.new(name: "BRAKE PADS", part_number: "BP-123")
+    tool_category = Punkauto::ToolCategory.new(name: "ENGINE TOOLS", group_name: "Engine+Tools", href: "/en/tools/Engine+Tools", level: 1)
+    tool = Punkauto::ToolInfo.new(name: "OIL FILTER TOOL", part_number: "OT-1")
+    what_is = Punkauto::WhatIsPartCalledResult.new(
+      main_category: "BRAKES", subcategory: "BRAKE PADS", full_path: "BRAKES/BRAKE PADS"
+    )
+
+    results = [
+      Punkauto::VehicleMakes.new(makes: ["HONDA"], count: 1),
+      Punkauto::VehicleYears.new(make: "HONDA", years: [2010], count: 1),
+      Punkauto::VehicleModels.new(make: "HONDA", year: 2010, models: ["ACCORD"], count: 1),
+      Punkauto::VehicleEngines.new(
+        make: "HONDA", year: 2010, model: "ACCORD",
+        engines: [Punkauto::Engine.new(description: "2.4l L4", carcode: "1444945")], count: 1
+      ),
+      Punkauto::VehiclePartCategories.new(
+        make: "HONDA", year: 2010, model: "ACCORD", carcode: "1444945", categories: [category], count: 1
+      ),
+      Punkauto::VehiclePartsResult.new(
+        make: "HONDA", year: 2010, model: "ACCORD", carcode: "1444945",
+        category: "BRAKE PADS", parts: [part], count: 1
+      ),
+      category,
+      part,
+      tool_category,
+      tool,
+      Punkauto::ToolCategories.new(categories: [tool_category], count: 1, level: 1),
+      Punkauto::ToolsResult.new(tools: [tool], count: 1, category: "ENGINE TOOLS", category_path: "Engine+Tools"),
+      Punkauto::ManufacturerOptions.new(manufacturers: [option], count: 1),
+      Punkauto::PartGroupOptions.new(part_groups: [option], count: 1),
+      Punkauto::PartTypeOptions.new(part_types: [option], count: 1),
+      what_is,
+      Punkauto::WhatIsPartCalledResults.new(results: [what_is], count: 1, search_term: "BRAKES")
+    ].map { |result| Punkauto::ResultPresenter.call(result, language: "es") }
+
+    expect(results[0].makes).to eq(["Honda"])
+    expect(results[1].make).to eq("Honda")
+    expect(results[2].models).to eq(["Accord"])
+    expect(results[3].engines.first.description).to eq("2.4L L4")
+    expect(results[4].categories.first.name).to eq("Brake & Wheel Hub")
+    expect(results[4].categories.first.group_name).to eq("BRAKE+&+WHEEL+HUB")
+    expect(results[5].category).to eq("Brake Pads")
+    expect(results[5].parts.first.part_number).to eq("BP-123")
+    expect(results[6].name).to eq("Brake & Wheel Hub")
+    expect(results[7].name).to eq("Brake Pads")
+    expect(results[8].name).to eq("Engine Tools")
+    expect(results[9].name).to eq("Oil Filter Tool")
+    expect(results[10].categories.first.name).to eq("Engine Tools")
+    expect(results[11].category).to eq("Engine Tools")
+    expect(results[11].tools.first.name).to eq("Oil Filter Tool")
+    expect(results[12].manufacturers.first.text).to eq("Brake & Wheel Hub")
+    expect(results[13].part_groups.first.value).to eq("BRAKE")
+    expect(results[13].part_groups.first.text).to eq("Brake & Wheel Hub")
+    expect(results[14].part_types.first.text).to eq("Brake & Wheel Hub")
+    expect(results[15].full_path).to eq("Brakes/Brake Pads")
+    expect(results[16].results.first.main_category).to eq("Brakes")
+  end
+
+  it "transforms vehicle display values without normalizing them back to uppercase" do
+    raw = Punkauto::Vehicle.new(
+      make: "HONDA", year: 2010, model: "ACCORD",
+      engine: Punkauto::Engine.new(description: "2.4l L4", carcode: "1444945")
+    )
+
+    transformed = Punkauto::ResultPresenter.call(raw, language: "es")
+
+    expect(transformed.make).to eq("Honda")
+    expect(transformed.model).to eq("Accord")
+    expect(transformed.engine.description).to eq("2.4L L4")
+    expect(transformed.carcode).to eq("1444945")
+  end
+
   it "stores tool categories with parent links and rebuilds their model results" do
     cache = described_class.new(path: ENV.fetch("PUNKAUTO_CACHE_PATH"))
     result = Punkauto::ToolCategories.new(
