@@ -10,6 +10,10 @@ require "securerandom"
 
 WebMock.disable_net_connect!(allow_localhost: true)
 
+def fixture(path)
+  File.read(File.join(__dir__, "fixtures", path))
+end
+
 RSpec.configure do |config|
   config.around do |example|
     previous_cache_path = ENV["PUNKAUTO_CACHE_PATH"]

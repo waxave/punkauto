@@ -3,15 +3,7 @@
 RSpec.describe Punkauto::PartExtractor do
   describe ".extract_from_listing" do
     let(:html) do
-      <<~HTML
-        <div class="listing-inner">
-          <span class="listing-final-manufacturer no-text-select">ULTRA-POWER</span>
-          <span class="listing-final-partnumber no-text-select">550173</span>
-          <span class="ra-formatted-amount listing-price listing-amount-bold"><span>$49.99</span></span>
-          <img class="listing-inline-image" src="/info/873/873_PS2102C_1__ra_m.jpg" alt="Part image">
-          <a href="https://www.rockauto.com/en/moreinfo.php?pk=16291129&amp;cc=3445240&amp;pt=1684">Info</a>
-        </div>
-      HTML
+      fixture("listings/part.html")
     end
     let(:node) { Nokogiri::HTML(html).at_css(".listing-inner") }
 
@@ -27,17 +19,12 @@ RSpec.describe Punkauto::PartExtractor do
     end
 
     it "returns nil when a listing has no meaningful data" do
-      empty = Nokogiri::HTML('<div class="listing-inner"></div>').at_css(".listing-inner")
+      empty = Nokogiri::HTML(fixture("listings/empty.html")).at_css(".listing-inner")
       expect(described_class.extract_from_listing(empty, name: "X")).to be_nil
     end
 
     it "extracts the name from the footnote when no name is given" do
-      html = '<table><tbody class="listing-inner">' \
-             '<span class="listing-final-manufacturer">BETTER BRAKE PARTS</span>' \
-             '<span class="listing-final-partnumber">41488K</span>' \
-             '<span class="listing-footnote-text">Category: Caliper Repair Kit</span>' \
-             '<span class="listing-price">$46.37</span>' \
-             '</tbody></table>'
+      html = fixture("listings/search-results.html")
       node = Nokogiri::HTML(html).at_css(".listing-inner")
 
       part = described_class.extract_from_listing(node)
@@ -53,13 +40,7 @@ RSpec.describe Punkauto::Client do
   let(:catalogapi) { "https://www.rockauto.com/catalog/catalogapi.php" }
 
   describe "#get_part_categories" do
-    let(:category_html) do
-      '<div>' \
-        '<a class="navlabellink nvoffset nnormal" href="/en/catalog/honda,2020,civic,1.5l+l4+turbocharged,3445240,brake+&amp;+wheel+hub">Brake &amp; Wheel Hub</a>' \
-        '<a class="navlabellink nvoffset nnormal" href="/en/catalog/honda,2020,civic,1.5l+l4+turbocharged,3445240,engine">Engine</a>' \
-        '<a href="/help/?page=1" class="nodeflag-a"><img alt="the USA flag"></a>' \
-        '</div>'
-    end
+    let(:category_html) { fixture("catalog/part-categories.html") }
 
     before do
       json = JSON.generate("html_fill_sections" => { "navchildren[]" => category_html })
@@ -81,18 +62,9 @@ RSpec.describe Punkauto::Client do
   end
 
   describe "#get_parts_by_category" do
-    let(:subcategory_html) do
-      '<a class="navlabellink" href="/en/catalog/honda,2020,civic,1.5l+l4+turbocharged,3445240,brake+&amp;+wheel+hub,brake+pad,1684">Brake Pad</a>'
-    end
+    let(:subcategory_html) { fixture("catalog/subcategories.html") }
 
-    let(:listing_html) do
-      '<div class="listing-inner">' \
-        '<span class="listing-final-manufacturer">ULTRA-POWER</span>' \
-        '<span class="listing-final-partnumber">550173</span>' \
-        '<span class="listing-price">$49.99</span>' \
-        '<a href="https://www.rockauto.com/en/moreinfo.php?pk=1&amp;cc=3445240&amp;pt=1684">Info</a>' \
-        '</div>'
-    end
+    let(:listing_html) { fixture("listings/part.html") }
 
     before do
       subcat_json = JSON.generate("html_fill_sections" => { "navchildren[]" => subcategory_html })
@@ -115,19 +87,11 @@ RSpec.describe Punkauto::Client do
   end
 
   describe "#search_parts_by_number" do
-    let(:listing_html) do
-      '<table><tbody class="listing-inner">' \
-        '<span class="listing-final-manufacturer">BETTER BRAKE PARTS</span>' \
-        '<span class="listing-final-partnumber">41488K</span>' \
-        '<span class="listing-footnote-text">Category: Caliper Repair Kit</span>' \
-        '<span class="listing-price">$46.37</span>' \
-        '<a href="https://www.rockauto.com/en/moreinfo.php?pk=15762661">Info</a>' \
-        '</tbody></table>'
-    end
+    let(:listing_html) { fixture("listings/search-results.html") }
 
     before do
       stub_request(:get, "https://www.rockauto.com/en/partsearch/")
-        .to_return(status: 200, body: '<input name="_nck" value="token123">',
+        .to_return(status: 200, body: fixture("partsearch/token.html"),
                    headers: { "Content-Type" => "text/html" })
       stub_request(:post, "https://www.rockauto.com/en/partsearch/")
         .to_return(status: 200, body: listing_html, headers: { "Content-Type" => "text/html" })
