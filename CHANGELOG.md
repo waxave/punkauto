@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-09
+
+### Added
+- Mise tasks for validated local releases, pushing Git releases, and publishing
+  the gem to RubyGems.
+
 ## [0.3.1] - 2026-11-09
 
 ### Fixed
