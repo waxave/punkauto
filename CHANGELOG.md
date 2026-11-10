@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-09
+
+### Fixed
+- Persist RockAuto locale cookies before following redirects, avoiding redirect
+  loops on localized catalog and part-search pages.
+- Apply transformed display casing to vehicle labels and engine descriptions.
+
 ## [0.3.0] - 2026-11-09
 
 ### Added
