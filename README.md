@@ -377,6 +377,23 @@ mise run build        # build punkauto.gem
 Run `mise tasks` to list the available tasks. The equivalent direct test
 commands are `bundle exec rspec` and `bundle exec rspec spec/cli_spec.rb`.
 
+### Releases
+
+Before releasing, update `Punkauto::VERSION` in `lib/punkauto/version.rb` and
+add a dated section for that version to `CHANGELOG.md`. Commit the release
+metadata on a clean `main` branch, then choose the desired release scope:
+
+```sh
+mise run release:local # test, build, and create a local v<VERSION> tag
+mise run release       # release:local, then push main and the tag to origin
+mise run release:gem   # release, then publish punkauto-<VERSION>.gem
+```
+
+Release tasks do not change the version or changelog. They reject a dirty tree,
+non-main branch, missing dated changelog entry, invalid version, or existing
+tag. RubyGems publishing uses the credentials configured for the `gem` command;
+do not store credentials in this repository.
+
 ## Disclaimer
 
 This client is for educational and legitimate research purposes. Respect

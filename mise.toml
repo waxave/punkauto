@@ -28,3 +28,54 @@ bundle exec rspec
 [tasks.build]
 description = "Build the punkauto gem"
 run = "gem build punkauto.gemspec"
+
+[tasks."release:local"]
+description = "Test, build, and tag the current release locally"
+run = '''
+set -eu
+
+if [ "$(git branch --show-current)" != "main" ]; then
+  echo "release:local must run from the main branch" >&2
+  exit 1
+fi
+
+if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+  echo "release:local requires a clean working tree" >&2
+  exit 1
+fi
+
+version=$(ruby -Ilib -e 'require "punkauto/version"; puts Punkauto::VERSION')
+tag="v${version}"
+
+ruby -e 'version = ARGV.fetch(0); abort "invalid release version: #{version}" unless version.match?(/\A\d+\.\d+\.\d+\z/)' "$version"
+ruby -e 'version = ARGV.fetch(0); found = File.readlines("CHANGELOG.md").any? { |line| line.match?(/^## \[#{Regexp.escape(version)}\] - \d{4}-\d{2}-\d{2}\s*$/) }; abort "CHANGELOG.md has no dated section for #{version}" unless found' "$version"
+
+if git show-ref --verify --quiet "refs/tags/${tag}"; then
+  echo "release tag ${tag} already exists" >&2
+  exit 1
+fi
+
+mise run check
+gem build punkauto.gemspec
+git tag -a "$tag" -m "Release ${tag}"
+echo "Created local release tag ${tag}"
+'''
+
+[tasks.release]
+description = "Test, build, tag, and push main and its release tag"
+depends = ["release:local"]
+run = '''
+set -eu
+version=$(ruby -Ilib -e 'require "punkauto/version"; print Punkauto::VERSION')
+tag="v${version}"
+git push origin main "refs/tags/${tag}:refs/tags/${tag}"
+'''
+
+[tasks."release:gem"]
+description = "Release to origin and publish the gem to RubyGems"
+depends = ["release"]
+run = '''
+set -eu
+version=$(ruby -Ilib -e 'require "punkauto/version"; print Punkauto::VERSION')
+gem push "punkauto-${version}.gem"
+'''
